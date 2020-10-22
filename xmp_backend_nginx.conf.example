@@ -1,0 +1,58 @@
+upstream gunicorn {
+    server 127.0.0.1:8000;
+    keepalive 64;
+}
+
+server {
+	root /var/www/html;
+
+    client_max_body_size 100M;
+
+	index index.html index.htm index.nginx-debian.html;
+    server_name mysite.io; # managed by Certbot
+    error_log stderr;
+    keepalive_timeout 70;
+
+	location / {
+		# First attempt to serve request as file, then
+		# as directory, then fall back to displaying a 404.
+		try_files $uri $uri/ =404;
+	}
+
+    location /injection/ {
+        try_files $uri @proxy_to_app;
+    }
+
+    location /swagger/ {
+        try_files $uri @proxy_to_app;
+    }
+    location /redoc/ {
+        try_files $uri @proxy_to_app;
+    }
+
+    location @proxy_to_app {
+        proxy_set_header Connection "";
+        proxy_http_version 1.1;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Host $http_host;
+        proxy_redirect off;
+        proxy_pass http://gunicorn;
+    }
+
+    listen 443 ssl; # managed by Certbot
+
+    ssl_certificate /etc/letsencrypt/live/mysite.io/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/mysite.io/privkey.pem; # managed by Certbot
+}
+
+server {
+    if ($host = mysite.io) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    server_name mysite.io;
+    listen 80;
+    return 404; # managed by Certbot
+}
